@@ -1,10 +1,24 @@
 from flask import Flask, make_response, jsonify
 from flask_restful import Api, Resource, reqparse
-from comcigan import School
 import json
 
 APP = Flask(__name__)
 API = Api(APP)
+
+
+def simplemessage(string):
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "simpleText": {
+                        "text": string
+                    }
+                }
+            ]
+        }
+    }
 
 
 class timetable(Resource):
@@ -14,11 +28,13 @@ class timetable(Resource):
         parser.add_argument('userRequest', type=dict)
         parser.add_argument('bot', type=dict)
         args = parser.parse_args()
-        userinfo = args['userRequest']
-        botinfo = args['bot']
+        user_id = args['userRequest']['user']['id']
+        data = json_loader('userdata.json').load()
+        if data.get(user_id) is None:
+            return simplemessage('유저정보가 등록되지 않았습니다. 유저 정보를 등록해주세요.')
 
 
-class carte(Resource):
+class food_menu(Resource):
     @staticmethod
     def post():
         parser = reqparse.RequestParser()
@@ -26,7 +42,6 @@ class carte(Resource):
         parser.add_argument('bot', type=dict)
         args = parser.parse_args()
         userinfo = args['userRequest']
-        botinfo = args['bot']
 
 
 class register(Resource):
@@ -35,24 +50,24 @@ class register(Resource):
         parser = reqparse.RequestParser()
         parser.add_argument('userRequest', type=dict)
         parser.add_argument('bot', type=dict)
-        args = parser.parse_args()
-        userinfo = args['userRequest']
-        botinfo = args['bot']
-
-class skill_payload(Resource):
-    @staticmethod
-    def post():
-        parser = reqparse.RequestParser()
-        parser.add_argument('userRequest', type=dict)
-        parser.add_argument('bot', type=dict)
         parser.add_argument('action', type=dict)
         args = parser.parse_args()
-        action = args['action']
         user_id = args['userRequest']['user']['id']
-        # 파라미터 가져오기
+        action = args['action']
+        params = action['params']
+        grade = params['학년']
+        group = params['반']
         loader = json_loader('userdata.json')
-        user_data = loader.load()
-        user_data[user_id] # 가져온 파라미터로 지정
+        data = loader.load()
+        result = jsonify(simplemessage(f'{grade}-{group} 으로 등록 되었습니다.')) if data.get(user_id) is None \
+            else jsonify(simplemessage(f'{grade}-{group} 으로 변경 되었습니다.'))
+        data[user_id] = {
+            '학년': grade,
+            '반': group
+        }
+        loader.write(data)
+        return result
+
 
 class json_loader:
     def __init__(self, filename):
@@ -63,6 +78,13 @@ class json_loader:
             return json.load(json_file)
 
     def write(self, data):
-        with open(self.filename) as file:
-            json.dump(data, file)
+        with open(self.filename, 'w') as file:
+            json.dump(data, file, ensure_ascii=False)
 
+
+API.add_resource(register, '/register')
+API.add_resource(timetable, '/timetable')
+API.add_resource(food_menu, '/food_menu')
+
+if __name__ == "__main__":
+    APP.run(host='0.0.0.0', port=7000)
